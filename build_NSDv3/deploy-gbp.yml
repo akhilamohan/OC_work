@@ -92,9 +92,20 @@
       - synchronize: "src={{gbp_rpms_path}} dest={{gbp_install_path}}"
         delegate_to: "{{build_server}}"
 
+      - name: find basename of GBP RPMs path
+        shell: basename {{gbp_rpms_path}}
+        register: gbp_folder
+      -
+        set_fact: gbp_folder_name={{ gbp_folder.stdout }}
+
+      -
+        debug: msg={{gbp_folder_name}}
+
+
+
       -
         name: "Find openstack-neutron-gbp rpm"
-        find: "paths={{gbp_install_path}} patterns=\"*openstack-neutron-gbp*.rpm\" recurse=yes"
+        find: "paths={{gbp_install_path}}/{{gbp_folder_name}} patterns=\"*openstack-neutron-gbp*.rpm\" recurse=yes"
         register: openstack_neutron_gbp
       -
         debug: "msg={{openstack_neutron_gbp.files[0].path}}"
@@ -104,7 +115,7 @@
 
       -
         name: "Find python-gbpclient rpm"
-        find: "paths={{gbp_install_path}} patterns=\"*python-gbpclient*.rpm\" recurse=yes"
+        find: "paths={{gbp_install_path}}/{{gbp_folder_name}} patterns=\"*python-gbpclient*.rpm\" recurse=yes"
         register: python_gbpclient
       -
         debug: "msg={{python_gbpclient.files[0].path}}"
@@ -128,7 +139,7 @@
          
       -
         name: "Find python-django-horizon rpm"
-        find: "paths={{gbp_install_path}} patterns=\"*python-django-horizon*.rpm\" recurse=yes"
+        find: "paths={{gbp_install_path}}/{{gbp_folder_name}} patterns=\"*python-django-horizon*.rpm\" recurse=yes"
         register: python_django_horizon
       -
         debug: "msg={{python_django_horizon.files[0].path}}"
@@ -138,7 +149,7 @@
 
       -
         name: "Find openstack-dashboard-gbp rpm"
-        find: "paths={{gbp_install_path}} patterns=\"*openstack-dashboard-gbp*.rpm\" recurse=yes"
+        find: "paths={{gbp_install_path}}/{{gbp_folder_name}} patterns=\"*openstack-dashboard-gbp*.rpm\" recurse=yes"
         register: openstack_dashboard_gbp
       -
         debug: "msg={{openstack_dashboard_gbp.files[0].path}}"
@@ -150,7 +161,7 @@
 
       -
         name: "Find openstack-heat-gbp rpm"
-        find: "paths={{gbp_install_path}} patterns=\"*openstack-heat-gbp*.rpm\" recurse=yes"
+        find: "paths={{gbp_install_path}}/{{gbp_folder_name}} patterns=\"*openstack-heat-gbp*.rpm\" recurse=yes"
         register: openstack_heat_gbp
       -
         debug: "msg={{openstack_heat_gbp.files[0].path}}"

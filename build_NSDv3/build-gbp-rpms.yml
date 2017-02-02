@@ -60,7 +60,7 @@
           register: cmd_log
           shell: "cat commands-gbp-rpms | docker run -i --name nfp_gbp_builder.ans  --rm -v ${PWD}:/nfp nfp-gbp-rpm-builder"
 
-        - debug: msg="{{cmd_log.stdout_lines}}"
+#        - debug: msg="{{cmd_log.stdout_lines}}"
         - 
           args: 
             chdir: "{{image_install_directory}}"

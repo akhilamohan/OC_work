@@ -25,7 +25,7 @@
 
 ---
 -
-  hosts: controller
+  hosts: "controller[0]"
   sudo: true
   environment:
     OS_AUTH_URL: "http://{{ inventory_hostname }}:5000/v2.0"
@@ -61,8 +61,6 @@
           shell: "gbp l3p-update default-nfp --external-segment default"
 
 
-        - name: Configure external network name for Orchestrator service
-          shell: python /usr/lib/python2.7/site-packages/gbpservice/contrib/nfp/tools/setup_nfp.py --configure-ext-net --ext-net-name ext-net
 
 #        - name: "create external policy"
 #          shell: "gbp external-policy-create --external-segments default --consumed-policy-rule-sets NSD-PRS=None {{ext_policy_name}}"
@@ -83,12 +81,46 @@
           shell: crudini --set /etc/neutron/neutron.conf group_policy_implicit_policy default_external_segment_name {{ external_segment_name }}
 
         - name: create external policy
-          shell: gbp external-policy-create --external-segments default --consumed-policy-rule-sets NSD-PRS=None default
+          shell: gbp external-policy-create --external-segments {{ external_segment_name }} --consumed-policy-rule-sets NSD-PRS=None default
+
+#        - name: set gateway to l3p_default-nfp
+#          shell: "gbp l3p-update default-nfp --external-segment {{ external_segment_name }}"
+
 
 
 
 #          name: "create external policy"
 #          shell: "gbp external-policy-create --external-segments {{ external_segment_name }} --consumed-policy-rule-sets NSD-PRS=None {{ext_policy_name}}"
+
+      when: deploy_external_segment == 'true' and ACI_setup == 'true'
+
+
+-
+  hosts: controller
+  sudo: true
+
+  tasks:
+    -
+      block:
+
+        - name: Configure external network name for Orchestrator service
+          shell: python /usr/lib/python2.7/site-packages/gbpservice/contrib/nfp/tools/setup_nfp.py --configure-ext-net --ext-net-name ext-net
+
+
+      when: deploy_external_segment == 'true' and ACI_setup == 'false'
+
+
+-
+  hosts: controller
+  sudo: true
+
+  tasks:
+    -
+      block:
+
+        - name: Configure external network name for Orchestrator service
+          shell: "es_name=$(crudini --get /etc/neutron/neutron.conf group_policy_implicit_policy default_external_segment_name); subnet_id=$(gbp es-show $es_name -c subnet_id -f value); network_id=$(neutron subnet-show $subnet_id -c network_id -f value);network_name=$(neutron net-show $network_id -c name -f value); python /usr/lib/python2.7/site-packages/gbpservice/contrib/nfp/tools/setup_nfp.py --configure-ext-net --ext-net-name $network_name"
+
 
       when: deploy_external_segment == 'true' and ACI_setup == 'true'
 

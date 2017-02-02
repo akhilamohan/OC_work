@@ -1,0 +1,466 @@
+---
+- 
+  hosts: build
+  sudo: true
+  tasks:
+    - 
+      block:
+        - 
+          name: "get timestamp"
+          register: ts
+          shell: "date +%F_%T | tr : -"
+        - 
+          set_fact: "timestamp={{ts.stdout}}"
+      when: "timestamp is not defined"
+    - 
+      debug: "msg={{timestamp}}"
+    - 
+      block:
+        - 
+          apt: "name=apache2 state=present"
+          name: "Install apache2 for build"
+
+        - 
+          debug: "msg={{timestamp}}"
+        - 
+          set_fact: "image_install_directory={{images_directory}}/images.{{timestamp}}"
+
+        - 
+          debug: "msg={{image_build_directory}}"
+        - 
+          debug: "msg={{image_install_directory}}"
+        - 
+          name: "Make the root build directory"
+          shell: "mkdir -p {{ image_build_directory }}"
+        - 
+          name: "Make the root install directory"
+          shell: "mkdir -p {{ image_install_directory }}"
+
+
+
+        - 
+          block:
+
+             - 
+               name: "Check if nsd-build exists"
+               register: p
+               stat: "path={{image_build_directory}}/nsd-build"
+             - 
+               name: "remove nsd-build"
+               shell:
+                 chdir: "{{image_build_directory}}"
+                 cmd: "rm -rf nsd-build"
+               when: "p.stat.isdir is defined"
+
+             - name: "git clone nsd-build"
+               shell: "git clone https://{{git_username}}:{{git_password}}@github.com/oneconvergence/nsd-build.git -b {{ nsd_build_branch }}"
+               args:
+                 chdir: "{{image_build_directory}}"
+
+             - 
+               args:
+                 chdir: "{{image_build_directory}}/nsd-build/tools/image_builder/"
+               name: "Copy JSON file for haproxy to  build directory"
+               shell: "cp conf_configurator.json conf_configurator_temp.json"
+             - 
+               args:
+                 chdir: "{{image_build_directory}}/nsd-build/tools/image_builder/"
+               name: "pass git-username NSD controller"
+               shell: "sed -i 's/\"username\":.*/\"username\":\"'{{git_username}}'\",/' conf_configurator_temp.json"
+             - 
+               args:
+                 chdir: "{{image_build_directory}}/nsd-build/tools/image_builder/"
+               name: "pass git-password NSD controller"
+               shell: "sed -i 's/\"password\":.*/\"password\":\"'{{git_password}}'\",/' conf_configurator_temp.json"
+
+             - 
+               args:
+                 chdir: "{{image_build_directory}}/nsd-build/tools/image_builder/"
+               name: "pass git-branch for NSD controller"
+               shell: "sed -i 's/\"branch\":.*/\"branch\":\"'{{nsd_gbp_branch}}'\"/' conf_configurator_temp.json"
+
+
+             - 
+               args:
+                 chdir: "{{image_build_directory}}/nsd-build/tools/image_builder/"
+               command: "python build_image.py conf_configurator_temp.json"
+               register: cmd_log
+               name: "build NSD controller"
+
+             - debug: msg="{{cmd_log.stdout_lines}}"
+
+             - 
+               args:
+                 chdir: "{{image_build_directory}}/nsd-build/tools/image_builder/"
+               name: "remove temporary configurator JSON file"
+               shell: "rm conf_configurator_temp.json"
+
+             - 
+               find: "paths=\"{{image_build_directory}}/nsd-build/tools/image_builder/output/\" patterns=\"*configurator*.qcow2\""
+               name: "get the nsd configurator files"
+               register: nsd_configurator_name
+             - 
+               debug: "var=nsd_configurator_name.files[0].path"
+
+             - name: move configurator image to latest image directory
+               shell: "mv {{nsd_configurator_name.files[0].path}} {{image_install_directory}}/nsd_controller.qcow2"
+
+             - name: copy setup_nsd_images.sh to latest image directory
+               shell: "cp {{image_build_directory}}/nsd-build/tools/setup_nsd_images.sh {{image_install_directory}}/."
+
+          when: opensource == 'false'
+
+
+
+
+        - 
+          block:
+
+             - 
+               name: "Check if group-based-policy exists"
+               register: p
+               stat: "path={{image_build_directory}}/group-based-policy"
+             - 
+               name: "remove group-based-policy & Always checkout new"
+               shell:
+                 chdir: "{{image_build_directory}}"
+                 cmd: "rm -rf group-based-policy"
+               when: "p.stat.isdir is defined"
+
+             - name: "git clone group-based-policy"
+               shell: "git clone https://github.com/openstack/group-based-policy.git -b stable/mitaka"
+               args:
+                 chdir: "{{image_build_directory}}"
+
+             - 
+               name: "Check if nsd-gbp exists"
+               register: p
+               stat: "path={{image_build_directory}}/nsd-gbp"
+             - 
+               name: "remove nsd-gbp & Always checkout new gbp"
+               shell:
+                 chdir: "{{image_build_directory}}"
+                 cmd: "rm -rf nsd-gbp"
+               when: "p.stat.isdir is defined"
+             - 
+               name: "Checking out nsd-gbp"
+               shell:
+                 chdir: "{{image_build_directory}}"
+                 cmd: "git clone https://{{git_username}}:{{git_password}}@github.com/oneconvergence/nsd-gbp.git -b {{ nsd_gbp_branch }}"
+
+             - 
+               name: "Check if nsd-build exists"
+               register: p
+               stat: "path={{image_build_directory}}/nsd-build"
+             - 
+               name: "remove nsd-build"
+               shell:
+                 chdir: "{{image_build_directory}}"
+                 cmd: "rm -rf nsd-build"
+               when: "p.stat.isdir is defined"
+
+             - name: "git clone nsd-build"
+               shell: "git clone https://{{git_username}}:{{git_password}}@github.com/oneconvergence/nsd-build.git -b {{ nsd_build_branch }}"
+               args:
+                 chdir: "{{image_build_directory}}"
+             #  when: "p.stat.isdir is not defined"
+
+             - name: "make directory nsd-gbp inside nsd-build"
+               shell: "mkdir -p nsd-build/tools/image_builder/git/nsd-gbp"
+               args:
+                 chdir: "{{image_build_directory}}"
+
+             - name: "copy content of group-based-policy into nsd-gbp inside nsd-build"
+               shell: "cp -r group-based-policy/* nsd-build/tools/image_builder/git/nsd-gbp/"
+               args:
+                 chdir: "{{image_build_directory}}"
+
+             - name: "copy content of nsd-gbp/gbpservice/nsd into nsd-gbp inside nsd-build"
+               shell: "cp -r nsd-gbp/gbpservice/nsd nsd-build/tools/image_builder/git/nsd-gbp/gbpservice/"
+               args:
+                 chdir: "{{image_build_directory}}"
+             - 
+               args:
+                 chdir: "{{image_build_directory}}/nsd-build/tools/image_builder/"
+               name: "Copy JSON file for haproxy to  build directory"
+               shell: "cp conf_configurator.json conf_configurator_temp.json"
+             - 
+               args:
+                 chdir: "{{image_build_directory}}/nsd-build/tools/image_builder/"
+               name: "pass git-username NSD controller"
+               shell: "sed -i 's/\"username\":.*/\"username\":\"'{{git_username}}'\",/' conf_configurator_temp.json"
+             - 
+               args:
+                 chdir: "{{image_build_directory}}/nsd-build/tools/image_builder/"
+               name: "pass git-password NSD controller"
+               shell: "sed -i 's/\"password\":.*/\"password\":\"'{{git_password}}'\",/' conf_configurator_temp.json"
+
+             - 
+               args:
+                 chdir: "{{image_build_directory}}/nsd-build/tools/image_builder/"
+               name: "pass git-branch for NSD controller"
+               shell: "sed -i 's/\"branch\":.*/\"branch\":\"'{{nsd_gbp_branch}}'\"/' conf_configurator_temp.json"
+
+             -
+               args:
+                 chdir: "{{image_build_directory}}/nsd-build/tools/image_builder/"
+               name: "comment line no 84 of the file dib/dib_build.py"
+               shell: "sed -i '84{s/^/##/}' dib/dib_build.py"
+
+             - 
+               args:
+                 chdir: "{{image_build_directory}}/nsd-build/tools/image_builder/"
+               command: "python build_image.py conf_configurator_temp.json"
+               register: cmd_log
+               name: "build NSD controller"
+
+             - debug: msg="{{cmd_log.stdout_lines}}"
+
+             - 
+               args:
+                 chdir: "{{image_build_directory}}/nsd-build/tools/image_builder/"
+               name: "remove temporary configurator JSON file"
+               shell: "rm conf_configurator_temp.json"
+
+             - 
+               find: "paths=\"{{image_build_directory}}/nsd-build/tools/image_builder/output/\" patterns=\"*configurator*.qcow2\""
+               name: "get the nsd configurator files"
+               register: nsd_configurator_name
+             - 
+               debug: "var=nsd_configurator_name.files[0].path"
+
+             - name: move configurator image to latest image directory
+               shell: "mv {{nsd_configurator_name.files[0].path}} {{image_install_directory}}/nsd_controller.qcow2"
+
+             - name: copy setup_nsd_images.sh to latest image directory
+               shell: "cp {{image_build_directory}}/nsd-build/tools/setup_nsd_images.sh {{image_install_directory}}/."
+
+          when: opensource == 'true'
+
+
+        - 
+          name: "Check if nsd-build exists"
+          register: p
+          stat: "path={{image_build_directory}}/nsd-build"
+        - 
+          name: "remove nsd-build"
+          shell:
+            chdir: "{{image_build_directory}}"
+            cmd: "rm -rf nsd-build"
+          when: "p.stat.isdir is defined"
+
+        - name: "git clone nsd-build"
+          shell: "git clone https://{{git_username}}:{{git_password}}@github.com/oneconvergence/nsd-build.git -b master"
+          args:
+            chdir: "{{image_build_directory}}"
+
+        - 
+          args:
+            chdir: "{{image_build_directory}}/nsd-build/tools/image_builder/"
+          name: "Copy JSON file for haproxy to  build directory"
+          shell: "cp conf_haproxy.json conf_haproxy_temp.json"
+        - 
+          args:
+            chdir: "{{image_build_directory}}/nsd-build/tools/image_builder/"
+          name: "pass git-username HAproxy"
+          shell: "sed -i 's/\"username\":.*/\"username\":\"'{{git_username}}'\",/' conf_haproxy_temp.json"
+        - 
+          args:
+            chdir: "{{image_build_directory}}/nsd-build/tools/image_builder/"
+          name: "pass git-password HAproxy"
+          shell: "sed -i 's/\"password\":.*/\"password\":\"'{{git_password}}'\",/' conf_haproxy_temp.json"
+
+        - 
+          args:
+            chdir: "{{image_build_directory}}/nsd-build/tools/image_builder/"
+          name: "pass git-branch for HAproxy"
+          shell: "sed -i 's/\"branch\":.*/\"branch\":\"'{{service_vm_agents_branch}}'\"/' conf_haproxy_temp.json"
+
+        - 
+          args:
+            chdir: "{{image_build_directory}}/nsd-build/tools/image_builder/"
+          command: "python build_image.py conf_haproxy_temp.json"
+          register: cmd_log
+          name: "build HAproxy"
+
+        - debug: msg="{{cmd_log.stdout_lines}}"
+
+        - 
+          args:
+            chdir: "{{image_build_directory}}/nsd-build/tools/image_builder/"
+          name: "remove temporary haproxy JSON file"
+          shell: "rm conf_haproxy_temp.json"
+
+
+        - 
+          args:
+            chdir: "{{image_build_directory}}/nsd-build/tools/image_builder/"
+          name: "Copy JSON file for lbaasv2 to  build directory"
+          shell: "cp conf_lbaasv2.json conf_lbaasv2_temp.json"
+        - 
+          args:
+            chdir: "{{image_build_directory}}/nsd-build/tools/image_builder/"
+          name: "pass git-username lbaasv2"
+          shell: "sed -i 's/\"username\":.*/\"username\":\"'{{git_username}}'\",/' conf_lbaasv2_temp.json"
+        - 
+          args:
+            chdir: "{{image_build_directory}}/nsd-build/tools/image_builder/"
+          name: "pass git-password lbaasv2"
+          shell: "sed -i 's/\"password\":.*/\"password\":\"'{{git_password}}'\",/' conf_lbaasv2_temp.json"
+
+        - 
+          args:
+            chdir: "{{image_build_directory}}/nsd-build/tools/image_builder/"
+          command: "python build_image.py conf_lbaasv2_temp.json"
+          register: cmd_log
+          name: "build lbaasv2"
+
+        - debug: msg="{{cmd_log.stdout_lines}}"
+
+        - 
+          args:
+            chdir: "{{image_build_directory}}/nsd-build/tools/image_builder/"
+          name: "remove temporary lbaasv2 JSON file"
+          shell: "rm conf_lbaasv2_temp.json"
+
+
+        - 
+          args:
+            chdir: "{{image_build_directory}}/nsd-build/tools/image_builder/"
+          name: "Creating temporary vyos JSON file"
+          shell: "cp conf_vyos.json conf_vyos_temp.json"
+        - 
+          args:
+            chdir: "{{image_build_directory}}/nsd-build/tools/image_builder/"
+          name: "pass git-username vyos"
+          shell: "sed -i 's/\"username\":.*/\"username\":\"'{{git_username}}'\",/' conf_vyos_temp.json"
+        - 
+          args:
+            chdir: "{{image_build_directory}}/nsd-build/tools/image_builder/"
+          name: "pass git-password  vyos"
+          shell: "sed -i 's/\"password\":.*/\"password\":\"'{{git_password}}'\",/' conf_vyos_temp.json"
+        - 
+          args:
+            chdir: "{{image_build_directory}}/nsd-build/tools/image_builder/"
+          name: "pass git-branch for  vyos"
+          shell: "sed -i 's/\"branch\":.*/\"branch\":\"'{{service_vm_agents_branch}}'\"/' conf_vyos_temp.json"
+
+#        - name: "temp fix remove service-vm-agents directory from nsd-build"
+#          shell: "rm -rf /opt/nfp-build/nsd-build/tools/image_builder/git/service-vm-agents/"
+
+        - 
+          args:
+            chdir: "{{image_build_directory}}/nsd-build/tools/image_builder/"
+          command: "python build_image.py conf_vyos_temp.json"
+          register: cmd_log
+          name: "build vyos"
+
+        - debug: msg="{{cmd_log.stdout_lines}}"
+
+        - 
+          args:
+            chdir: "{{image_build_directory}}/nsd-build/tools/image_builder/"
+          name: "remove temporary vyos json file"
+          shell: "rm conf_vyos_temp.json"
+
+        - 
+          args:
+            chdir: "{{image_build_directory}}/nsd-build/tools/image_builder/"
+          name: "Creating temporary visibility JSON file"
+          shell: "cp conf_visibility.json conf_visibility_temp.json"
+
+        - 
+          args:
+            chdir: "{{image_build_directory}}/nsd-build/tools/image_builder/"
+          name: "pass git-username visibility"
+          shell: "sed -i 's/\"username\":.*/\"username\":\"'{{git_username}}'\",/' conf_visibility_temp.json"
+        - 
+          args:
+            chdir: "{{image_build_directory}}/nsd-build/tools/image_builder/"
+          name: "pass git-password  visibility"
+          shell: "sed -i 's/\"password\":.*/\"password\":\"'{{git_password}}'\",/' conf_visibility_temp.json"
+
+        - 
+          args:
+            chdir: "{{image_build_directory}}/nsd-build/tools/image_builder/"
+          name: "pass docker_images_url visibility"
+          shell: sed -i 's/"docker_images_url":.*/"docker_images_url":"http\:\/\/192\.168\.200\.50\/docker_images\/"/' conf_visibility_temp.json
+
+        - 
+          args:
+            chdir: "{{image_build_directory}}/nsd-build/tools/image_builder/"
+          command: "python build_image.py conf_visibility_temp.json"
+          register: cmd_log
+          name: "build visibility controller"
+
+
+        - debug: msg="{{cmd_log.stdout_lines}}"
+
+        - 
+          args:
+            chdir: "{{image_build_directory}}/nsd-build/tools/image_builder/"
+          name: "remove temporary visibility json file"
+          shell: "rm conf_visibility_temp.json"
+
+
+        - 
+          find: "paths=\"{{image_build_directory}}/nsd-build/tools/image_builder/output\" patterns=\"*visibility*.qcow2\""
+          name: "get the visibility controller files"
+          register: visibility_controller_name
+
+
+
+
+
+
+        - 
+          find: "paths=\"{{image_build_directory}}/nsd-build/tools/image_builder/output\" patterns=\"*haproxy*.qcow2\""
+          name: "get the haproxy files"
+          register: haproxy_name
+
+
+        - 
+          find: "paths=\"{{image_build_directory}}/nsd-build/tools/image_builder/output\" patterns=\"*lbaasv2*.qcow2\""
+          name: "get the lbaasv2 files"
+          register: lbaasv2_name
+
+
+        - 
+          find: "paths=\"{{image_build_directory}}/nsd-build/tools/image_builder/output/\" recurse=yes patterns=\"*vyos*qcow2\""
+          name: "get the vyos files"
+          register: vyos_name
+
+
+        - 
+          debug: "var=vyos_name.files[0].path"
+       # - 
+       #   debug: "var=configurator_name.files[0].path"
+        - 
+          debug: "var=haproxy_name.files[0].path"
+
+        - 
+          debug: "var=lbaasv2_name.files[0].path"
+
+
+        - 
+          debug: "var=nsd_configurator_name.files[0].path"
+
+        - 
+          debug: "var=visibility_controller_name.files[0].path"
+
+
+        - 
+          command: "{{ item }}"
+          name: "move image files to Latest image directory"
+          with_items:
+            - "mv {{haproxy_name.files[0].path}} {{image_install_directory}}/haproxy_lbaasv1.qcow2"
+            - "mv {{vyos_name.files[0].path}} {{image_install_directory}}/vyos.qcow2"
+            - "cp {{asav_lbaasv2_path}}/asav.qcow2 {{image_install_directory}}/asav.qcow2"
+            - "mv {{lbaasv2_name.files[0].path}} {{image_install_directory}}/haproxy_lbaasv2.qcow2"
+            - "mv {{visibility_controller_name.files[0].path}} {{image_install_directory}}/visibility_controller.qcow2"
+
+        - name: "copy keys to Latest image directory"
+          shell: "cp {{image_build_directory}}/nsd-build/tools/image_builder/output/*.key {{image_install_directory}}"
+      when: "build_images == 'true'"
+
+                                                      

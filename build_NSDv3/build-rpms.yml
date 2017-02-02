@@ -58,7 +58,7 @@
             chdir: "{{images_directory}}/rpm-build.{{timestamp}}"
           name: "build rpms"
           register: cmd_log
-          shell: "cat commands-rpms | docker run -i --name nfp_gbp_builder.ans  --rm -v ${PWD}:/nfp nfp-gbp-rpm-builder"
+          shell: "cat commands-rpms | docker run -i --name nfp_gbp_builder1.ans  --rm -v ${PWD}:/nfp nfp-gbp-rpm-builder"
 
         - debug: msg="{{cmd_log.stdout_lines}}"
         - 

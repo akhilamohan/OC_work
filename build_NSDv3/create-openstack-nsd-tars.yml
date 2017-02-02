@@ -77,7 +77,7 @@
 
         - 
           name: "copy setup_nsd_images.sh into NSD_images"
-          shell: "cp {{asav_lbaasv2_path}}/setup_nsd_images.sh {{images_directory}}/{{image_dir.stdout}}/NSD_Images_{{nsd_version}}/"
+          shell: "cp {{images_directory}}/{{image_dir.stdout}}/setup_nsd_images.sh {{images_directory}}/{{image_dir.stdout}}/NSD_Images_{{nsd_version}}/"
 
         - 
           args:

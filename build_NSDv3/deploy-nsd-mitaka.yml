@@ -76,26 +76,27 @@
           name: "Extract openstack-nsd-packages tar"
           shell: "tar -zxf {{nsd_packages_tar_path.files[0].path}}"
 
-
         - 
-          find: "paths={{nsd_install_dir}} patterns=\"*openstack-nfp*\" recurse=yes"
-          name: "Find the openstack-nfp tar"
-          register: openstack_nfp_tar_path
-        - 
-          debug: "msg={{openstack_nfp_tar_path.files[0].path}}"
-        - 
-          args: 
-            chdir: "{{nsd_install_dir}}"
-          name: "Extract openstack-nfp tar"
-          shell: "tar -zxf {{openstack_nfp_tar_path.files[0].path}}"
-        - 
-          args: 
-            chdir: "{{nsd_install_dir}}/openstack-nfp"
-          name: "Install NFP on OS controller"
-          shell: "bash install_nfp.sh upgrade_db"
-          register: cmd_log
-        - debug: msg="{{cmd_log.stdout_lines}}"
-
+          block:
+             - 
+               find: "paths={{nsd_install_dir}} patterns=\"*openstack-nfp*\" recurse=yes"
+               name: "Find the openstack-nfp tar"
+               register: openstack_nfp_tar_path
+             - 
+               debug: "msg={{openstack_nfp_tar_path.files[0].path}}"
+             - 
+               args: 
+                chdir: "{{nsd_install_dir}}"
+               name: "Extract openstack-nfp tar"
+               shell: "tar -zxf {{openstack_nfp_tar_path.files[0].path}}"
+             - 
+               args: 
+                chdir: "{{nsd_install_dir}}/openstack-nfp"
+               name: "Install NFP on OS controller"
+               shell: "bash install_nfp.sh upgrade_db"
+               register: cmd_log
+             - debug: msg="{{cmd_log.stdout_lines}}"
+          when: upgrade_nfp == 'true'
 
         - 
           find: "paths={{nsd_install_dir}} patterns=\"*openstack-nsd-[0-9]*.rpm\" recurse=yes"
@@ -178,7 +179,7 @@
 #        - 
 #          name: "Restart Nova"
 #          shell: "openstack-service restart nova"
-      when: "deploy_nsd == 'true'"
+      when: "deploy_nsd == 'tru'"
 
 - 
   hosts: "controller[0]"
@@ -230,7 +231,7 @@
           shell: "python /usr/lib/python2.7/site-packages/gbpservice/nsd/tools/setup_nsd.py --create-resources l3p_ip_pool={{ l3p_ip_pool }},l3p_subnet_prefix_length={{ l3p_subnet_prefix_length }},l3p_proxy_ip_pool={{ l3p_proxy_ip_pool }}"
           register: cmd_log
         - debug: msg="{{cmd_log.stdout_lines}}"
-      when: "deploy_nsd == 'true'"
+      when: "deploy_nsd == 'tru'"
 
 
 - 
@@ -245,7 +246,7 @@
           register: cmd_log
         - debug: msg="{{cmd_log.stdout_lines}}"
 
-      when: "deploy_nsd == 'true'"
+      when: "deploy_nsd == 'tru'"
 
 
 
@@ -314,7 +315,7 @@
           set_fact: "controller_ip={{ nsd_controller_VM_ip.stdout }}"
         - 
           debug: "msg={{controller_ip}}"
-      when: "deploy_nsd == 'true'"
+      when: "deploy_nsd == 'tru'"
 
 -
   hosts: network
@@ -363,22 +364,27 @@
                 chdir: "{{nsd_install_dir}}"
               name: "Extract openstack-nsd-packages tar"
               shell: "tar -zxf {{nsd_packages_tar_path.files[0].path}}"
+
             -
-              find: "paths={{nsd_install_dir}} patterns=\"*openstack-nfp*\" recurse=yes"
-              name: "Find the openstack-nfp tar rmp"
-              register: openstack_nfp_tar_path
-            -
-              debug: "msg={{openstack_nfp_tar_path.files[0].path}}"
-            -
-              args:
-                chdir: "{{nsd_install_dir}}"
-              name: "Extract openstack-nfp tar"
-              shell: "tar -zxf {{openstack_nfp_tar_path.files[0].path}}"
-            -
-              args:
-                chdir: "{{nsd_install_dir}}/openstack-nfp"
-              name: "Install NFP on OS controller"
-              shell: "bash install_nfp.sh"
+              block:
+                 -
+                   find: "paths={{nsd_install_dir}} patterns=\"*openstack-nfp*\" recurse=yes"
+                   name: "Find the openstack-nfp tar rmp"
+                   register: openstack_nfp_tar_path
+                 -
+                   debug: "msg={{openstack_nfp_tar_path.files[0].path}}"
+
+                 -
+                   args:
+                     chdir: "{{nsd_install_dir}}"
+                   name: "Extract openstack-nfp tar"
+                   shell: "tar -zxf {{openstack_nfp_tar_path.files[0].path}}"
+                 -
+                   args:
+                     chdir: "{{nsd_install_dir}}/openstack-nfp"
+                   name: "Install NFP on OS controller"
+                   shell: "bash install_nfp.sh"
+              when:  upgrade_nfp == 'true'
             -
               find: "paths={{nsd_install_dir}} patterns=\"*openstack-nsd*.rpm\" recurse=yes"
               name: "Find the openstack-nsd rmp"

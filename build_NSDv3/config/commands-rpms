@@ -21,7 +21,7 @@ mv /nfp/nsd-gbp/gbpservice/contrib/nfp/tools/openstack-nfp.tgz /nfp/.
 #Build nsd-rpm
 cd /nfp
 rm -rf nsd-gbp
-git clone https://sriharshabarkuru:sri1990@github.com/oneconvergence/nsd-gbp.git -b nsd-v3-integration
+git clone https://sriharshabarkuru:sri1990@github.com/oneconvergence/nsd-gbp.git -b nsd-v3-integration-nfp-sync
 git clone https://sriharshabarkuru:sri1990@github.com/oneconvergence/nsd-build.git -b nsd-v3-integration
 cp -r nsd-build/build-spec-files/nsd-gbp/rpm/ nsd-gbp/
 cp nsd-build/tools/setup_nsd.py nsd-gbp/gbpservice/nsd/tools/
@@ -40,7 +40,7 @@ rm -rf ssl-vpn-build
 mkdir ssl-vpn-build
 git clone https://sriharshabarkuru:sri1990@github.com/oneconvergence/nsd-build.git -b nsd-v3-integration
 cp -r nsd-build/build-spec-files/nsd-ssl-vpn/rpm ssl-vpn-build/
-git clone https://sriharshabarkuru:sri1990@github.com/oneconvergence/nsd-gbp.git -b nsd-v3-integration
+git clone https://sriharshabarkuru:sri1990@github.com/oneconvergence/nsd-gbp.git -b nsd-v3-integration-nfp-sync
 cp -r nsd-gbp/gbpservice/nsd/extensions/sslvpn/ ssl-vpn-build/
 cd ssl-vpn-build/
 bash rpm/build-nsd-sslvpn-rpm.sh --build_version=0 --release_version=2.3.1

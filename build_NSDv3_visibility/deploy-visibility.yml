@@ -1,0 +1,178 @@
+# One Convergence, Inc. CONFIDENTIAL                                                                                
+#1;3409;0c Copyright (c) 2012-2014, One Convergence, Inc., USA                                                               
+# All Rights Reserved.                                                                                              
+#                                                                                                                   
+# All information contained herein is, and remains the property of                                                  
+# One Convergence, Inc. and its suppliers, if any. The intellectual and                                             
+# technical concepts contained herein are proprietary to One Convergence,                                           
+# Inc. and its suppliers.                                                                                           
+#                                                                                                                   
+# Dissemination of this information or reproduction of this material is                                             
+# strictly forbidden unless prior written permission is obtained from
+# One Convergence, Inc., USA
+#
+
+########################################################################
+#    Project: Ansible NSD Install                                      # 
+#    Team/Authors:                                                     #                                            
+#            Venkat Akkina [venkat.akkina@oneconvergence.com]          #                                            
+#            Harshal Wagh  [harshal.wagh@oneconvergence.com]           #                                            
+#            Deekshith Patnala [deekshith.patnala@oneconvergence.com]  #                                            
+########################################################################    
+
+---
+- 
+  hosts: build
+  sudo: true
+  tasks:
+    - 
+      block:
+        - 
+          name: "get timestamp"
+          register: ts
+          shell: "date +%F_%T | tr : -"
+        - 
+          set_fact: "timestamp={{ts.stdout}}"
+      when: "timestamp is not defined"
+    - 
+      debug: "msg={{timestamp}}"
+
+
+- 
+  hosts: "controller[0]"
+  tasks:
+    - 
+      set_fact: "build_server=\"{{groups['build'][0]}}\""
+    - 
+      debug: "msg=\"{{build_server}}\""
+    - 
+      block:
+        - 
+          set_fact: "build_server={{groups['build'][0]}}"
+
+        -
+          ignore_errors: true
+          name: "check whether nsd_install_directory exist or not"
+          register: p
+          stat: "path={{nsd_install_dir}}"
+
+        -
+          debug: "msg=\"nsd_install directory exist\""
+          when: "p.stat.isdir is defined and p.stat.isdir"
+
+        -
+          fail: "msg=\"nsd_install directory does not exist, cant proceed further\""
+          when: "p.stat.isdir is not defined"
+
+        - 
+          find: "paths={{nsd_install_dir}} patterns=*NSD_Images* recurse=yes file_type=directory"
+          name: "Find the NSD-images directory"
+          register: NSD_images_path
+        - 
+          debug: "msg={{NSD_images_path.files[0].path}}"
+        - 
+          find: "paths={{NSD_images_path.files[0].path}} patterns=\"*visibility_controller*.qcow2\" recurse=yes"
+          name: "Find the visibility_controller qcow image"
+          register: visibility_controller
+        - 
+          debug: "msg={{visibility_controller.files[0].path}}"
+
+        - 
+          args:
+            chdir: "{{NSD_images_path.files[0].path}}"
+          name: "Launch Visibility Controller VM"
+          shell: "python /usr/lib/python2.7/site-packages/gbpservice/nsd/tools/setup_visibility.py --launch-controller --user-data-path /usr/lib/python2.7/site-packages/gbpservice/nsd/tools/visibility_user_data --file-path {{visibility_controller.files[0].path}}"
+          register: cmd_log
+        - debug: msg="{{cmd_log.stdout_lines}}"
+
+
+        - 
+          name: "Configure visibility in orchestrator"
+          shell: "python /usr/lib/python2.7/site-packages/gbpservice/nsd/tools/setup_visibility.py --configure orchestrator"
+          register: cmd_log
+        - debug: msg="{{cmd_log.stdout_lines}}"
+
+        - 
+          name: "Configure visibility in rsyslog"
+          shell: "python /usr/lib/python2.7/site-packages/gbpservice/nsd/tools/setup_visibility.py --configure rsyslog"
+          register: cmd_log
+        - debug: msg="{{cmd_log.stdout_lines}}"
+
+
+      when: "deploy_visibility == 'true'"
+
+
+-
+  hosts: network
+  tasks:
+    -
+      set_fact: "build_server={{groups['build'][0]}}"
+    -
+      debug: "msg={{build_server}}"
+    -
+      set_fact: "OSC={{ hostvars[groups['controller'][0]]['inventory_hostname']}}"
+    -
+      set_fact: "NC={{ hostvars[groups['network'][0]]['inventory_hostname']}}"
+    -
+      debug: "msg={{OSC}}"
+    -
+      debug: "msg={{NC}}"
+    -
+      block:
+        -
+          block:
+
+             - 
+               name: "Configure visibility in rsyslog"
+               shell: "python /usr/lib/python2.7/site-packages/gbpservice/nsd/tools/setup_visibility.py --configure rsyslog"
+               register: cmd_log
+             - debug: msg="{{cmd_log.stdout_lines}}"
+                           
+
+          when: "OSC != NC"
+      when: "deploy_visibility == 'true'"
+
+
+
+
+-
+  hosts: compute
+  tasks:
+    -
+      set_fact: "build_server={{groups['build'][0]}}"
+    -
+      debug: "msg={{build_server}}"
+    -
+      block:
+
+        - 
+          ignore_errors: true
+          name: "check whether nsd_install_directory exist or not"
+          register: p
+          stat: "path={{nsd_install_dir}}"
+        - 
+          debug: "msg=\"nsd_install directory already exist\""
+          when: "p.stat.isdir is defined and p.stat.isdir"
+        - 
+          file: "path=\"{{nsd_install_dir}}\" state=absent"
+          name: "delete existing nsd_install_dir"
+          when: "p.stat.isdir is defined and p.stat.isdir"
+        - 
+          name: "Create nsd_install_directory"
+          shell: "mkdir -p {{nsd_install_dir}}"
+
+        - 
+          delegate_to: "{{groups['controller'][0]}}"
+          synchronize: "src=/usr/lib/python2.7/site-packages/gbpservice/nsd/tools/setup_visibility.py dest={{nsd_install_dir}}"
+
+        - 
+          args:
+            chdir: "{{nsd_install_dir}}"
+          name: "Configure visibility in nova"
+          shell: "python setup_visibility.py --configure nova"
+          register: cmd_log
+        - debug: msg="{{cmd_log.stdout_lines}}"
+
+
+      when: "deploy_visibility == 'true'"
+

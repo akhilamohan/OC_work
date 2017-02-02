@@ -1,0 +1,113 @@
+#                                                                                                                   
+# One Convergence, Inc. CONFIDENTIAL                                                                                
+# Copyright (c) 2012-2014, One Convergence, Inc., USA                                                               
+# All Rights Reserved.                                                                                              
+#                                                                                                                   
+# All information contained herein is, and remains the property of                                                  
+# One Convergence, Inc. and its suppliers, if any. The intellectual and                                             
+# technical concepts contained herein are proprietary to One Convergence,                                           
+# Inc. and its suppliers.                                                                                           
+#                                                                                                                   
+# Dissemination of this information or reproduction of this material is                                             
+# strictly forbidden unless prior written permission is obtained from
+# One Convergence, Inc., USA
+#
+
+########################################################################
+#    Project: Ansible NSD Install                                      # 
+#    Team/Authors:                                                     #                                            
+#            Venkat Akkina [venkat.akkina@oneconvergence.com]          #                                            
+#            Harshal Wagh  [harshal.wagh@oneconvergence.com]           #                                            
+########################################################################    
+
+---
+- 
+  hosts: build
+  sudo: true
+  tasks:
+    - 
+      block:
+        - 
+          name: "get timestamp"
+          register: ts
+          shell: "date +%F_%T | tr : -"
+        - 
+          set_fact: "timestamp={{ts.stdout}}"
+      when: "timestamp is not defined"
+    - 
+      debug: "msg={{timestamp}}"
+
+
+- 
+  hosts: compute
+  tasks:
+    - 
+      set_fact: "build_server=\"{{groups['build'][0]}}\""
+    - 
+      debug: "msg=\"{{build_server}}\""
+    - 
+      block:
+
+        - 
+          name: Clean visibility
+          args:
+            chdir: "{{nsd_install_dir}}"
+          shell: python setup_visibility.py --cleanup nova
+
+      when: "cleanup_visibility == 'true'"
+
+
+- 
+  hosts: controller
+  tasks:
+    - 
+      set_fact: "build_server=\"{{groups['build'][0]}}\""
+    - 
+      debug: "msg=\"{{build_server}}\""
+    - 
+      block:
+
+        - 
+          name: Clean visibility in rsyslog
+          shell: python /usr/lib/python2.7/site-packages/gbpservice/nsd/tools/setup_visibility.py --cleanup rsyslog
+
+        - 
+          name: Clean visibility in orchestrator
+          shell: python /usr/lib/python2.7/site-packages/gbpservice/nsd/tools/setup_visibility.py --cleanup orchestrator
+
+        - 
+          name: Destroy controller
+          shell: python /usr/lib/python2.7/site-packages/gbpservice/nsd/tools/setup_visibility.py --destroy-controller
+
+
+      when: "cleanup_visibility == 'true'"
+
+
+-
+  hosts: network
+  tasks:
+    -
+      set_fact: "build_server={{groups['build'][0]}}"
+    -
+      debug: "msg={{build_server}}"
+    -
+      set_fact: "OSC={{ hostvars[groups['controller'][0]]['inventory_hostname']}}"
+    -
+      set_fact: "NC={{ hostvars[groups['network'][0]]['inventory_hostname']}}"
+    -
+      debug: "msg={{OSC}}"
+    -
+      debug: "msg={{NC}}"
+    -
+      block:
+        -
+          block:
+
+            -
+              name: Clean visibility in rsyslog
+              shell: python /usr/lib/python2.7/site-packages/gbpservice/nsd/tools/setup_visibility.py --cleanup rsyslog
+
+
+          when: "OSC != NC"
+      when: "cleanup_visibility == 'true'"
+
